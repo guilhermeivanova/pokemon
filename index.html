@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pokémon API</title>
+    <!-- Link para os ícones de tipos de Pokémon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .pokemon-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-gap: 20px;
+        }
+        .pokemon-item {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .pokemon-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .pokemon-image {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 10px;
+            display: block;
+        }
+        .pokemon-image-large {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 20px;
+            display: block;
+        }
+        .pokemon-type {
+            margin-top: 5px;
+        }
+        #search-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.7);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            border-radius: 8px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .evolution-chain {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .evolution-chain-item {
+            display: inline-block;
+            text-align: center;
+        }
+        .evolution-chain-item img {
+            width: 80px;
+            height: 80px;
+            margin: 10px;
+        }
+        /* Estilos para os ícones dos tipos de Pokémon */
+        .type-icon {
+            margin-right: 5px;
+            font-size: 18px;
+        }
+        .type-grass { color: green; }
+        .type-fire { color: red; }
+        .type-water { color: blue; }
+        .type-electric { color: yellow; }
+        .type-normal { color: #333; }
+        .type-fighting { color: brown; }
+        .type-poison { color: purple; }
+        .type-ground { color: #996633; }
+        .type-flying { color: #66CCFF; }
+        .type-psychic { color: pink; }
+        .type-bug { color: #99CC00; }
+        .type-rock { color: #999999; }
+        .type-ghost { color: #663399; }
+        .type-dragon { color: #663300; }
+        .type-dark { color: #330000; }
+        .type-steel { color: #999999; }
+        .type-fairy { color: #FF99FF; }
+        .type-ice { color: #66CCFF; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pokémon List</h1>
+        <input type="text" id="search-input" placeholder="Search Pokémon...">
+        <button id="shiny-toggle">Toggle Shiny</button>
+        <ul class="pokemon-list" id="pokemon-list">
+            <!-- All Pokémon will be dynamically added here -->
+        </ul>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="modal-content"></div>
+            <div id="evolution-chain" class="evolution-chain"></div>
+            <button id="shiny-button">Convert to Shiny</button>
+        </div>
+    </div>
+
+    <script>
+        // Fetch Pokémon data from PokeAPI
+        fetch('https://pokeapi.co/api/v2/pokemon?limit=150')
+            .then(response => response.json())
+            .then(data => {
+                const searchInput = document.getElementById('search-input');
+                const pokemonList = document.getElementById('pokemon-list');
+                const modal = document.getElementById('modal');
+                const modalContent = document.getElementById('modal-content');
+                const shinyButton = document.getElementById('shiny-button');
+                const shinyToggle = document.getElementById('shiny-toggle');
+
+                let currentPokemonData = null;
+                let shinyMode = false;
+
+                const renderPokemonList = (pokemonData, listElement) => {
+                    listElement.innerHTML = '';
+                    pokemonData.forEach(pokemon => {
+                        fetch(pokemon.url)
+                            .then(response => response.json())
+                            .then(pokemonData => {
+                                const pokemonItem = document.createElement('li');
+                                pokemonItem.classList.add('pokemon-item');
+                                pokemonItem.innerHTML = `
+                                    <img class="pokemon-image" src="${pokemonData.sprites[shinyMode ? 'front_shiny' : 'front_default']}" alt="${pokemonData.name}">
+                                    <h3>${pokemonData.name}</h3>
+                                    <p>Pokédex Number: ${pokemonData.id}</p>
+                                    <p>Height: ${pokemonData.height}</p>
+                                    <p>Weight: ${pokemonData.weight}</p>
+                                    <p class="pokemon-type">Type(s): ${pokemonData.types.map(type => {
+                                        let iconClass = '';
+                                        switch (type.type.name) {
+                                            case 'grass':
+                                                iconClass = 'fas fa-leaf';
+                                                break;
+                                            case 'fire':
+                                                iconClass = 'fas fa-fire';
+                                                break;
+                                            case 'water':
+                                                iconClass = 'fas fa-tint';
+                                                break;
+                                            case 'electric':
+                                                iconClass = 'fas fa-bolt';
+                                                break;
+                                            case 'flying':
+                                                iconClass = 'fas fa-feather';
+                                                break;
+                                            case 'bug':
+                                                iconClass = 'fas fa-bug';
+                                                break;
+                                            case 'rock':
+                                                iconClass = 'fas fa-gem';
+                                                break;
+                                            case 'psychic':
+                                                iconClass = 'fas fa-brain';
+                                                break;
+                                            case 'ghost':
+                                                iconClass = 'fas fa-ghost';
+                                                break;
+                                            case 'poison':
+                                                iconClass = 'fas fa-skull-crossbones';
+                                                break;
+                                            case 'ice':
+                                                iconClass = 'fas fa-snowflake';
+                                                break;
+                                            case 'ground':
+                                                iconClass = 'fas fa-mountain';
+                                                break;
+                                            case 'fairy':
+                                                iconClass = 'fas fa-magic';
+                                                break;
+                                            case 'dragon':
+                                                iconClass = 'fas fa-dragon';
+                                                break;
+                                            case 'normal':
+                                                iconClass = 'fas fa-star';
+                                                break;
+                                            default:
+                                                iconClass = 'fas fa-question';
+                                        }
+                                        return `<i class="type-icon type-${type.type.name} ${iconClass}"></i>`;
+                                    }).join('')}</p>
+                                    <p>Abilities: ${pokemonData.abilities.map(ability => ability.ability.name).join(', ')}</p>
+                                    <p>Attacks: ${pokemonData.moves.slice(0, 5).map(move => move.move.name).join(', ')}</p>
+                                `;
+                                pokemonItem.addEventListener('click', () => {
+                                    modal.style.display = 'block';
+                                    modalContent.innerHTML = `
+                                        <img class="pokemon-image-large" src="${pokemonData.sprites[shinyMode ? 'front_shiny' : 'front_default']}" alt="${pokemonData.name}">
+                                        <h3>${pokemonData.name}</h3>
+                                        <p>Pokédex Number: ${pokemonData.id}</p>
+                                        <p>Height: ${pokemonData.height}</p>
+                                        <p>Weight: ${pokemonData.weight}</p>
+                                        <p class="pokemon-type">Type(s): ${pokemonData.types.map(type => {
+                                            let iconClass = '';
+                                            switch (type.type.name) {
+                                                case 'grass':
+                                                    iconClass = 'fas fa-leaf';
+                                                    break;
+                                                case 'fire':
+                                                    iconClass = 'fas fa-fire';
+                                                    break;
+                                                case 'water':
+                                                    iconClass = 'fas fa-tint';
+                                                    break;
+                                                case 'electric':
+                                                    iconClass = 'fas fa-bolt';
+                                                    break;
+                                                case 'flying':
+                                                    iconClass = 'fas fa-feather';
+                                                    break;
+                                                case 'bug':
+                                                    iconClass = 'fas fa-bug';
+                                                    break;
+                                                case 'rock':
+                                                    iconClass = 'fas fa-gem';
+                                                    break;
+                                                case 'psychic':
+                                                    iconClass = 'fas fa-brain';
+                                                    break;
+                                                case 'ghost':
+                                                    iconClass = 'fas fa-ghost';
+                                                    break;
+                                                case 'poison':
+                                                    iconClass = 'fas fa-skull-crossbones';
+                                                    break;
+                                                case 'ice':
+                                                    iconClass = 'fas fa-snowflake';
+                                                    break;
+                                                case 'ground':
+                                                    iconClass = 'fas fa-mountain';
+                                                    break;
+                                                case 'fairy':
+                                                    iconClass = 'fas fa-magic';
+                                                    break;
+                                                case 'dragon':
+                                                    iconClass = 'fas fa-dragon';
+                                                    break;
+                                                case 'normal':
+                                                    iconClass = 'fas fa-star';
+                                                    break;
+                                                default:
+                                                    iconClass = 'fas fa-question';
+                                            }
+                                            return `<i class="type-icon type-${type.type.name} ${iconClass}"></i>`;
+                                        }).join('')}</p>
+                                        <p>Abilities: ${pokemonData.abilities.map(ability => ability.ability.name).join(', ')}</p>
+                                        <p>Attacks: ${pokemonData.moves.map(move => move.move.name).join(', ')}</p>
+                                    `;
+                                    fetch(pokemonData.species.url)
+                                        .then(response => response.json())
+                                        .then(speciesData => {
+                                            fetch(speciesData.evolution_chain.url)
+                                                .then(response => response.json())
+                                                .then(evolutionData => {
+                                                    const evolutionChain = getEvolutionChain(evolutionData.chain);
+                                                    const evolutionContainer = document.createElement('div');
+                                                    evolutionContainer.classList.add('evolution-chain');
+                                                    evolutionContainer.innerHTML = evolutionChain;
+                                                    modalContent.appendChild(evolutionContainer);
+                                                });
+                                        });
+                                    shinyButton.addEventListener('click', () => {
+                                        const currentImage = modalContent.querySelector('.pokemon-image-large');
+                                        if (shinyMode) {
+                                            currentImage.src = pokemonData.sprites.front_default;
+                                            shinyMode = false;
+                                        } else {
+                                            currentImage.src = pokemonData.sprites.front_shiny;
+                                            shinyMode = true;
+                                        }
+                                    });
+                                    currentPokemonData = pokemonData;
+                                });
+                                listElement.appendChild(pokemonItem);
+                            });
+                    });
+                };
+
+                const getEvolutionChain = (chain) => {
+                    let evolutionChain = '';
+                    if (chain.species) {
+                        evolutionChain += `
+                            <div class="evolution-chain-item">
+                                <img src="https://pokeapi.co/api/v2/pokemon/${getPokemonId(chain.species.url)}.png" alt="${chain.species.name}">
+                                <br>${chain.species.name}
+                            </div>
+                        `;
+                    }
+                    if (chain.evolves_to && chain.evolves_to.length > 0) {
+                        evolutionChain += ' > ';
+                        evolutionChain += getEvolutionChain(chain.evolves_to[0]);
+                    }
+                    return evolutionChain;
+                };
+
+                const getPokemonId = (url) => {
+                    const idRegExp = /\/(\d+)\//;
+                    return url.match(idRegExp)[1];
+                };
+
+                // Search functionality
+                searchInput.addEventListener('input', () => {
+                    const searchTerm = searchInput.value.toLowerCase();
+                    const filteredPokemon = data.results.filter(pokemon => pokemon.name.includes(searchTerm));
+                    renderPokemonList(filteredPokemon, pokemonList);
+                });
+
+                // Default load - All Pokémon
+                renderPokemonList(data.results, pokemonList);
+
+                // Modal close button
+                const modalClose = document.getElementsByClassName('close')[0];
+                modalClose.addEventListener('click', () => {
+                    modal.style.display = 'none';
+                });
+
+                // Close modal when clicking outside of it
+                window.addEventListener('click', (event) => {
+                    if (event.target === modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+
+                // Toggle shiny mode
+                shinyToggle.addEventListener('click', () => {
+                    shinyMode = !shinyMode;
+                    renderPokemonList(data.results, pokemonList);
+                });
+            });
+    </script>
+</body>
+</html>
